@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AutoToolKit</string>
+    <string name="accessibility_description">用于执行用户设定的自动点击和手势回放。本服务不会读取或上传屏幕内容。</string>
+</resources>
