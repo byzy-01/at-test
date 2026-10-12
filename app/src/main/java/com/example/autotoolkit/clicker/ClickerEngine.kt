@@ -5,11 +5,12 @@ import android.os.Looper
 import com.example.autotoolkit.service.AutoClickService
 
 class ClickerEngine {
-
     private val handler = Handler(Looper.getMainLooper())
-    @Volatile
-    private var isRunning = false
+    @Volatile private var running = false
     private val points = mutableListOf<ClickPoint>()
+    private val counters = mutableMapOf<Int, Int>()
+
+    fun getPoints(): MutableList<ClickPoint> = points
 
     fun addPoint(point: ClickPoint) {
         points.add(point)
@@ -17,72 +18,53 @@ class ClickerEngine {
 
     fun removePoint(id: Int) {
         points.removeAll { it.id == id }
-    }
-
-    fun getPoints(): List<ClickPoint> = points.toList()
-
-    fun updatePoint(updated: ClickPoint) {
-        val index = points.indexOfFirst { it.id == updated.id }
-        if (index >= 0) points[index] = updated
+        counters.remove(id)
     }
 
     fun start() {
-        if (isRunning) return
+        if (running) return
         if (points.none { it.enabled }) return
-        isRunning = true
-        executeNext(0, 0)
+        running = true
+        counters.clear()
+        points.filter { it.enabled }.forEach { startPointLoop(it) }
     }
 
-    @Synchronized
+    private fun startPointLoop(point: ClickPoint) {
+        val runnable = object : Runnable {
+            override fun run() {
+                if (!running) return
+                val executed = counters[point.id] ?: 0
+                if (point.repeatCount > 0 && executed >= point.repeatCount) return
+
+                val service = AutoClickService.instance
+                if (service == null) {
+                    running = false
+                    return
+                }
+
+                val x = Randomizer.jitterCoordinate(point.x, point.randomOffsetX)
+                val y = Randomizer.jitterCoordinate(point.y, point.randomOffsetY)
+                val dur = Randomizer.jitterDuration(point.pressDuration, point.randomDurationExtra)
+
+                service.performClick(x, y, dur)
+                counters[point.id] = executed + 1
+
+                val delay = Randomizer.jitterDelay(point.delayBeforeClick, point.randomDelayExtra)
+                handler.postDelayed(this, delay)
+            }
+        }
+        val firstDelay = Randomizer.jitterDelay(point.delayBeforeClick, point.randomDelayExtra)
+        handler.postDelayed(runnable, firstDelay)
+    }
+
     fun stop() {
-        isRunning = false
+        running = false
         handler.removeCallbacksAndMessages(null)
     }
 
-    fun isRunning() = isRunning
+    fun isRunning() = running
 
-    private fun executeNext(index: Int, currentCycle: Int) {
-        if (!isRunning) return
-
-        if (index >= points.size) {
-            if (isRunning) executeNext(0, currentCycle + 1)
-            return
-        }
-
-        val point = points[index]
-        if (!point.enabled) {
-            executeNext(index + 1, currentCycle)
-            return
-        }
-
-        if (point.repeatCount > 0 && currentCycle >= point.repeatCount) {
-            executeNext(index + 1, currentCycle)
-            return
-        }
-
-        val service = AutoClickService.instance
-        if (service == null) {
-            stop()
-            return
-        }
-
-        val jitterX = Randomizer.jitterCoordinate(point.x, point.randomOffsetX)
-        val jitterY = Randomizer.jitterCoordinate(point.y, point.randomOffsetY)
-        val delay = Randomizer.jitterDelay(point.delayBeforeClick, point.randomDelayExtra)
-        val duration = Randomizer.jitterDuration(point.pressDuration, point.randomDurationExtra)
-
-        handler.postDelayed({
-            if (!isRunning) return@postDelayed
-
-            val success = service.performClick(jitterX, jitterY, duration)
-            if (!success) {
-                stop()
-                return@postDelayed
-            }
-
-            handler.postDelayed({
-                executeNext(index + 1, currentCycle)
-            }, 50L)
-        }, delay)
+    fun resetCounters() {
+        counters.clear()
     }
 }
