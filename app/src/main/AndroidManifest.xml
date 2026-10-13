@@ -25,7 +25,7 @@
         <service
             android:name=".service.AutoClickService"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="false">
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
@@ -35,9 +35,22 @@
         </service>
 
         <service
-            android:name=".service.FloatingWindowService"
+            android:name=".service.ClickerWindowService"
             android:foregroundServiceType="specialUse"
-            android:exported="false" />
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="accessibility-automation-overlay" />
+        </service>
+
+        <service
+            android:name=".service.RecorderWindowService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="accessibility-automation-overlay" />
+        </service>
 
     </application>
 </manifest>
